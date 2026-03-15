@@ -1,9 +1,0 @@
-file_format: "1.0"
-instrumentation/development:
-  java:
-    external_annotations:
-      exclude_methods:
-        - class: io.opentelemetry.javaagent.instrumentation.extannotations.TracedMethodsExclusionTest$TestClass
-          methods:
-            - excluded
-            - annotatedButExcluded

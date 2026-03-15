@@ -116,6 +116,45 @@ class LogbackAppenderTest {
   }
 
   @Test
+  void shouldInitializeAppenderNestedInsideMdcAppender() {
+    Map<String, Object> properties = new HashMap<>();
+    properties.put("logging.config", "classpath:logback-test-otel-appender-inside-mdc.xml");
+    properties.put(
+        "otel.instrumentation.logback-appender.experimental.capture-key-value-pair-attributes",
+        "true");
+
+    SpringApplication app =
+        new SpringApplication(
+            TestingOpenTelemetryConfiguration.class, OpenTelemetryAppenderAutoConfiguration.class);
+    app.setDefaultProperties(properties);
+    ConfigurableApplicationContext context = app.run();
+    cleanup.deferCleanup(context);
+
+    ch.qos.logback.classic.Logger testLogger =
+        (ch.qos.logback.classic.Logger) LoggerFactory.getLogger("test");
+    ch.qos.logback.classic.spi.LoggingEvent loggingEvent =
+        new ch.qos.logback.classic.spi.LoggingEvent();
+    loggingEvent.setLoggerName("test");
+    loggingEvent.setMessage("test message");
+    loggingEvent.setLevel(ch.qos.logback.classic.Level.INFO);
+    loggingEvent.addKeyValuePair(new org.slf4j.event.KeyValuePair("myKey", "myValue"));
+    testLogger.callAppenders(loggingEvent);
+
+    // should be exactly ONE log record - no duplicate appender was added
+    List<LogRecordData> logRecords = testing.logRecords();
+    assertThat(logRecords)
+        .satisfiesOnlyOnce(
+            logRecord -> {
+              assertThat(logRecord.getInstrumentationScopeInfo().getName()).isEqualTo("test");
+              assertThat(logRecord.getBodyValue().asString()).isEqualTo("test message");
+              // capture-key-value-pair-attributes=true was applied to the existing
+              // nested appender, proving it was found and reinitialized (not duplicated)
+              assertThat(logRecord.getAttributes().asMap())
+                  .containsEntry(stringKey("myKey"), "myValue");
+            });
+  }
+
+  @Test
   void shouldNotInitializeAppenderWhenDisabled() {
     Map<String, Object> properties = new HashMap<>();
     properties.put("logging.config", "classpath:logback-test.xml");

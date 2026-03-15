@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>
+        %d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+      </pattern>
+    </encoder>
+  </appender>
+
+  <appender name="List" class="ch.qos.logback.core.read.ListAppender" />
+
+  <!--
+    Simulates the scenario where the OTel appender is defined in XML
+    and the MDC appender wraps it (as addMdcAppender() does at runtime).
+    The bug: findAppender() could not find OpenTelemetryAppender nested here,
+    so it added a duplicate instead of reinitializing the existing one.
+  -->
+  <appender name="OpenTelemetryMdc"
+            class="io.opentelemetry.instrumentation.logback.mdc.v1_0.OpenTelemetryAppender">
+    <appender name="OpenTelemetry"
+              class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
+    </appender>
+    <appender-ref ref="List"/>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="console"/>
+    <appender-ref ref="OpenTelemetryMdc"/>
+  </root>
+
+</configuration>

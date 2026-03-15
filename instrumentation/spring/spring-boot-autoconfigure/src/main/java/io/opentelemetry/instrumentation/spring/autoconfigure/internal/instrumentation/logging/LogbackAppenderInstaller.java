@@ -267,12 +267,29 @@ class LogbackAppenderInstaller {
     }
     LoggerContext loggerContext = (LoggerContext) loggerFactorySpi;
     for (ch.qos.logback.classic.Logger logger : loggerContext.getLoggerList()) {
-      Iterator<Appender<ILoggingEvent>> appenderIterator = logger.iteratorForAppenders();
-      while (appenderIterator.hasNext()) {
-        Appender<ILoggingEvent> appender = appenderIterator.next();
-        if (appenderClass.isInstance(appender)) {
-          T openTelemetryAppender = appenderClass.cast(appender);
-          return Optional.of(openTelemetryAppender);
+      Optional<T> found = findAppender(appenderClass, logger.iteratorForAppenders());
+      if (found.isPresent()) {
+        return found;
+      }
+    }
+    return Optional.empty();
+  }
+
+  private static <T> Optional<T> findAppender(
+      Class<T> appenderClass, Iterator<Appender<ILoggingEvent>> iterator) {
+    while (iterator.hasNext()) {
+      Appender<ILoggingEvent> appender = iterator.next();
+      if (appenderClass.isInstance(appender)) {
+        return Optional.of(appenderClass.cast(appender));
+      }
+      // recurse into composite appenders (e.g. MDC appender wrapping others)
+      if (appender instanceof ch.qos.logback.core.spi.AppenderAttachable) {
+        @SuppressWarnings("unchecked")
+        ch.qos.logback.core.spi.AppenderAttachable<ILoggingEvent> attachable =
+            (ch.qos.logback.core.spi.AppenderAttachable<ILoggingEvent>) appender;
+        Optional<T> found = findAppender(appenderClass, attachable.iteratorForAppenders());
+        if (found.isPresent()) {
+          return found;
         }
       }
     }
